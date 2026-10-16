@@ -38,7 +38,7 @@ static Field kFields[] = {
     { 115, L"X offset",  L"X",         &g.x,         -4000, 4000 },
     { 116, L"Y offset",  L"Y",         &g.y,         -4000, 4000 },
 };
-enum { IDC_STYLE = 100, IDC_SWATCH, IDC_COLOR, IDC_OPACITY, IDC_SHOW, IDC_CENTER, IDC_SCREEN,
+enum { IDC_STYLE = 100, IDC_SWATCH, IDC_COLOR, IDC_OPACITY, IDC_SHOW, IDC_CENTER, IDC_SCREEN, IDC_STATUS,
        UPDOWN_OFFSET = 50 };
 enum { HOTKEY_TOGGLE = 1, TIMER_TOPMOST = 1 };
 enum { WM_TRAY = WM_APP + 1, IDM_SETTINGS = 200, IDM_TOGGLE, IDM_EXIT };
@@ -46,6 +46,7 @@ enum { WM_TRAY = WM_APP + 1, IDM_SETTINGS = 200, IDM_TOGGLE, IDM_EXIT };
 static HWND gMain, gOverlay;
 static HICON gIconSm;
 static UINT gTaskbarCreated;
+static bool gExclusive;  // a game is in exclusive fullscreen, where Windows won't draw overlays
 static HFONT gFont;
 static HBRUSH gSwatchBrush;
 static UINT gDpi = 96;
@@ -243,17 +244,31 @@ static void ApplyOverlay() {
     ShowWindow(gOverlay, g.visible ? SW_SHOWNOACTIVATE : SW_HIDE);
 }
 
+static void CheckExclusive();
+
+// Fullscreen games often make themselves topmost when they take focus; move back above them.
+static void RaiseOverlay() {
+    if (g.visible)
+        SetWindowPos(gOverlay, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+}
+
+// Out-of-context WinEvent: Windows just posts us a notification when the foreground window
+// changes (the same mechanism screen readers use). Nothing is loaded into other processes.
+static void CALLBACK OnForegroundChanged(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD) {
+    RaiseOverlay();
+}
+
 static LRESULT CALLBACK OverlayProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
     case WM_NCHITTEST: return HTTRANSPARENT;
-    case WM_DISPLAYCHANGE:  // screen added/removed/rearranged
+    case WM_DISPLAYCHANGE:  // screen added/removed/rearranged, or a game changed resolution
         RefreshMonitors();
         FillScreenCombo();
         ApplyOverlay();
         return 0;
-    case WM_TIMER:  // borderless games can climb above us; quietly stay on top
-        if (g.visible)
-            SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    case WM_TIMER:  // safety net for anything the foreground event misses
+        RaiseOverlay();
+        CheckExclusive();
         return 0;
     }
     return DefWindowProcW(hwnd, msg, wp, lp);
@@ -310,10 +325,13 @@ static void PickColor() {
     }
 }
 
+static void UpdateStatus(bool notify);
+
 static void ToggleVisible() {
     g.visible = !g.visible;
     CheckDlgButton(gMain, IDC_SHOW, g.visible ? BST_CHECKED : BST_UNCHECKED);
     ApplyOverlay();
+    UpdateStatus(false);
 }
 
 static void BuildUi(HWND hwnd) {
@@ -369,7 +387,10 @@ static void BuildUi(HWND hwnd) {
                       L"Run games in borderless or windowed mode.\n"
                       L"Closing keeps it running in the tray.",
         0, L, y, C + CW - L, 54, -1);
-    y += 54 + 14;
+    y += 54 + 8;
+
+    Ctl(0, L"STATIC", nullptr, 0, L, y, C + CW - L, 54, IDC_STATUS);
+    y += 54 + 8;
 
     NONCLIENTMETRICSW ncm = { sizeof(ncm) };
     SystemParametersInfoForDpi(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0, gDpi);
@@ -396,6 +417,42 @@ static void AddTrayIcon() {
     nid.hIcon = gIconSm;
     wcscpy(nid.szTip, L"Simple Crosshair");
     Shell_NotifyIconW(NIM_ADD, &nid);
+    UpdateStatus(false);
+}
+
+// Settings status line + tray tooltip; `notify` also pops a one-off tray notification.
+static void UpdateStatus(bool notify) {
+    const wchar_t* status = !g.visible ? L"Status: hidden (Ctrl+Alt+H to show)"
+                          : gExclusive ? L"Status: blocked by an exclusive fullscreen game. "
+                                         L"Set the game to Borderless or Windowed."
+                                       : L"Status: showing";
+    SetDlgItemTextW(gMain, IDC_STATUS, status);
+
+    NOTIFYICONDATAW nid = { sizeof(nid) };
+    nid.hWnd = gMain;
+    nid.uID = 1;
+    nid.uFlags = NIF_TIP;
+    wcscpy(nid.szTip, !g.visible ? L"Simple Crosshair - hidden"
+                    : gExclusive ? L"Simple Crosshair - blocked by exclusive fullscreen"
+                                 : L"Simple Crosshair - showing");
+    if (notify) {
+        nid.uFlags |= NIF_INFO;
+        nid.dwInfoFlags = NIIF_INFO;
+        wcscpy(nid.szInfoTitle, L"Crosshair can't show over this game");
+        wcscpy(nid.szInfo, L"It's in exclusive fullscreen, where Windows doesn't draw overlays. "
+                           L"Set the game's display mode to Borderless or Windowed.");
+    }
+    Shell_NotifyIconW(NIM_MODIFY, &nid);
+}
+
+// Windows reports exclusive (D3D) fullscreen through the shell's notification state; nothing
+// about the game itself is inspected.
+static void CheckExclusive() {
+    QUERY_USER_NOTIFICATION_STATE st;
+    const bool exclusive = SUCCEEDED(SHQueryUserNotificationState(&st)) && st == QUNS_RUNNING_D3D_FULL_SCREEN;
+    if (exclusive == gExclusive) return;
+    gExclusive = exclusive;
+    UpdateStatus(exclusive && g.visible);
 }
 
 static void RemoveTrayIcon() {
@@ -578,7 +635,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
                                WS_EX_NOACTIVATE,
                                L"SimpleCrosshairOverlay", L"Simple Crosshair Overlay", WS_POPUP, 0, 0, 1, 1,
                                nullptr, nullptr, inst, nullptr);
-    SetTimer(gOverlay, TIMER_TOPMOST, 1000, nullptr);
+    SetTimer(gOverlay, TIMER_TOPMOST, 500, nullptr);
+    SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, nullptr, OnForegroundChanged, 0, 0,
+                    WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
     ApplyOverlay();
 
     CreateWindowExW(0, L"SimpleCrosshairMain", L"Simple Crosshair", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,

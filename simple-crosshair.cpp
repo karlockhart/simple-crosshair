@@ -13,6 +13,7 @@
 #include <windows.h>
 #include <commctrl.h>
 #include <commdlg.h>
+#include <shellapi.h>
 #include <math.h>
 #include <stdlib.h>
 #include <wchar.h>
@@ -39,8 +40,11 @@ static Field kFields[] = {
 };
 enum { IDC_STYLE = 100, IDC_SWATCH, IDC_COLOR, IDC_OPACITY, IDC_SHOW, IDC_CENTER, UPDOWN_OFFSET = 50 };
 enum { HOTKEY_TOGGLE = 1, TIMER_TOPMOST = 1 };
+enum { WM_TRAY = WM_APP + 1, IDM_SETTINGS = 200, IDM_TOGGLE, IDM_EXIT };
 
 static HWND gMain, gOverlay;
+static HICON gIconSm;
+static UINT gTaskbarCreated;
 static HFONT gFont;
 static HBRUSH gSwatchBrush;
 static UINT gDpi = 96;
@@ -292,9 +296,10 @@ static void BuildUi(HWND hwnd) {
     y += ROW + 4;
 
     Ctl(0, L"STATIC", L"Ctrl+Alt+H shows/hides the crosshair.\n"
-                      L"Run games in borderless or windowed mode.",
-        0, L, y, C + CW - L, 36, -1);
-    y += 36 + 14;
+                      L"Run games in borderless or windowed mode.\n"
+                      L"Closing keeps it running in the tray.",
+        0, L, y, C + CW - L, 54, -1);
+    y += 54 + 14;
 
     NONCLIENTMETRICSW ncm = { sizeof(ncm) };
     SystemParametersInfoForDpi(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0, gDpi);
@@ -310,11 +315,71 @@ static void BuildUi(HWND hwnd) {
     gLoading = false;
 }
 
+// ---------------------------------------------------------------- tray
+
+static void AddTrayIcon() {
+    NOTIFYICONDATAW nid = { sizeof(nid) };
+    nid.hWnd = gMain;
+    nid.uID = 1;
+    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    nid.uCallbackMessage = WM_TRAY;
+    nid.hIcon = gIconSm;
+    wcscpy(nid.szTip, L"Simple Crosshair");
+    Shell_NotifyIconW(NIM_ADD, &nid);
+}
+
+static void RemoveTrayIcon() {
+    NOTIFYICONDATAW nid = { sizeof(nid) };
+    nid.hWnd = gMain;
+    nid.uID = 1;
+    Shell_NotifyIconW(NIM_DELETE, &nid);
+}
+
+static void ShowSettings() {
+    ShowWindow(gMain, IsIconic(gMain) ? SW_RESTORE : SW_SHOW);
+    SetForegroundWindow(gMain);
+}
+
+static void ShowTrayMenu() {
+    HMENU menu = CreatePopupMenu();
+    AppendMenuW(menu, MF_STRING, IDM_SETTINGS, L"Settings");
+    AppendMenuW(menu, MF_STRING | (g.visible ? MF_CHECKED : 0), IDM_TOGGLE, L"Show crosshair\tCtrl+Alt+H");
+    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(menu, MF_STRING, IDM_EXIT, L"Exit");
+    SetMenuDefaultItem(menu, IDM_SETTINGS, FALSE);
+
+    POINT pt;
+    GetCursorPos(&pt);
+    SetForegroundWindow(gMain);  // required so the menu closes when clicking elsewhere
+    TrackPopupMenu(menu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, gMain, nullptr);
+    PostMessageW(gMain, WM_NULL, 0, 0);
+    DestroyMenu(menu);
+}
+
 static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == gTaskbarCreated && msg) {  // Explorer restarted; put the tray icon back
+        AddTrayIcon();
+        return 0;
+    }
     switch (msg) {
     case WM_CREATE:
         BuildUi(hwnd);
+        AddTrayIcon();
         RegisterHotKey(hwnd, HOTKEY_TOGGLE, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'H');
+        return 0;
+
+    case WM_TRAY:
+        if (lp == WM_LBUTTONUP) ShowSettings();
+        else if (lp == WM_RBUTTONUP) ShowTrayMenu();
+        return 0;
+
+    case WM_CLOSE:  // closing the settings window only hides it; the crosshair stays up
+        SaveSettings();
+        ShowWindow(hwnd, SW_HIDE);
+        return 0;
+
+    case WM_SIZE:
+        if (wp == SIZE_MINIMIZED) ShowWindow(hwnd, SW_HIDE);
         return 0;
 
     case WM_COMMAND: {
@@ -340,6 +405,12 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         } else if (id == IDC_CENTER) {
             SetDlgItemInt(hwnd, 115, 0, TRUE);
             SetDlgItemInt(hwnd, 116, 0, TRUE);
+        } else if (id == IDM_SETTINGS) {
+            ShowSettings();
+        } else if (id == IDM_TOGGLE) {
+            ToggleVisible();
+        } else if (id == IDM_EXIT) {
+            DestroyWindow(hwnd);
         }
         return 0;
     }
@@ -365,6 +436,7 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
     case WM_DESTROY:
         SaveSettings();
+        RemoveTrayIcon();
         UnregisterHotKey(hwnd, HOTKEY_TOGGLE);
         PostQuitMessage(0);
         return 0;
@@ -401,7 +473,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     CreateMutexW(nullptr, TRUE, L"SimpleCrosshair.SingleInstance");
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
         if (HWND existing = FindWindowW(L"SimpleCrosshairMain", nullptr)) {
-            ShowWindow(existing, SW_RESTORE);
+            ShowWindow(existing, IsIconic(existing) ? SW_RESTORE : SW_SHOW);
             SetForegroundWindow(existing);
         }
         return 0;
@@ -422,7 +494,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
     wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
     wc.hIcon = MakeIcon(S(32));
-    wc.hIconSm = MakeIcon(S(16));
+    wc.hIconSm = gIconSm = MakeIcon(GetSystemMetricsForDpi(SM_CXSMICON, gDpi));
+    gTaskbarCreated = RegisterWindowMessageW(L"TaskbarCreated");
     wc.lpszClassName = L"SimpleCrosshairMain";
     RegisterClassExW(&wc);
 

@@ -38,7 +38,8 @@ static Field kFields[] = {
     { 115, L"X offset",  L"X",         &g.x,         -4000, 4000 },
     { 116, L"Y offset",  L"Y",         &g.y,         -4000, 4000 },
 };
-enum { IDC_STYLE = 100, IDC_SWATCH, IDC_COLOR, IDC_OPACITY, IDC_SHOW, IDC_CENTER, UPDOWN_OFFSET = 50 };
+enum { IDC_STYLE = 100, IDC_SWATCH, IDC_COLOR, IDC_OPACITY, IDC_SHOW, IDC_CENTER, IDC_SCREEN,
+       UPDOWN_OFFSET = 50 };
 enum { HOTKEY_TOGGLE = 1, TIMER_TOPMOST = 1 };
 enum { WM_TRAY = WM_APP + 1, IDM_SETTINGS = 200, IDM_TOGGLE, IDM_EXIT };
 
@@ -50,6 +51,11 @@ static HBRUSH gSwatchBrush;
 static UINT gDpi = 96;
 static bool gLoading;
 static wchar_t gIni[MAX_PATH];
+static wchar_t gScreen[CCHDEVICENAME];  // chosen monitor's device name; empty = primary
+
+struct Monitor { RECT rc; wchar_t dev[CCHDEVICENAME]; bool primary; };
+static Monitor gMons[16];
+static int gMonCount;
 
 static int S(int v) { return MulDiv(v, gDpi, 96); }
 static int Clamp(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -77,6 +83,7 @@ static void LoadSettings() {
     g.style = Clamp(ReadInt(L"Style", g.style), 0, ST_COUNT - 1);
     g.opacity = Clamp(ReadInt(L"Opacity", g.opacity), 10, 100);
     g.visible = ReadInt(L"Visible", g.visible) != 0;
+    GetPrivateProfileStringW(L"Crosshair", L"Screen", L"", gScreen, CCHDEVICENAME, gIni);
     for (Field& f : kFields) *f.v = Clamp(ReadInt(f.key, *f.v), f.lo, f.hi);
 
     wchar_t hex[16];
@@ -91,6 +98,7 @@ static void SaveSettings() {
     WriteInt(L"Style", g.style);
     WriteInt(L"Opacity", g.opacity);
     WriteInt(L"Visible", g.visible);
+    WritePrivateProfileStringW(L"Crosshair", L"Screen", gScreen, gIni);
     for (Field& f : kFields) WriteInt(f.key, *f.v);
     wchar_t hex[16];
     wsprintfW(hex, L"%02X%02X%02X", GetRValue(g.color), GetGValue(g.color), GetBValue(g.color));
@@ -99,12 +107,47 @@ static void SaveSettings() {
 
 // ---------------------------------------------------------------- overlay
 
-static POINT PrimaryCenter() {
-    MONITORINFO mi = { sizeof(mi) };
-    GetMonitorInfoW(MonitorFromPoint({ 0, 0 }, MONITOR_DEFAULTTOPRIMARY), &mi);
-    return { mi.rcMonitor.left + (mi.rcMonitor.right - mi.rcMonitor.left) / 2,
-             mi.rcMonitor.top + (mi.rcMonitor.bottom - mi.rcMonitor.top) / 2 };
+static BOOL CALLBACK AddMonitor(HMONITOR h, HDC, LPRECT, LPARAM) {
+    MONITORINFOEXW mi;
+    mi.cbSize = sizeof(mi);
+    if (gMonCount < 16 && GetMonitorInfoW(h, &mi)) {
+        Monitor& m = gMons[gMonCount++];
+        m.rc = mi.rcMonitor;
+        wcscpy(m.dev, mi.szDevice);
+        m.primary = (mi.dwFlags & MONITORINFOF_PRIMARY) != 0;
+    }
+    return TRUE;
 }
+
+// Rebuilds the monitor list, ordered left-to-right then top-to-bottom.
+static void RefreshMonitors() {
+    gMonCount = 0;
+    EnumDisplayMonitors(nullptr, nullptr, AddMonitor, 0);
+    for (int i = 1; i < gMonCount; ++i)
+        for (int j = i; j > 0; --j) {
+            const RECT &a = gMons[j - 1].rc, &b = gMons[j].rc;
+            if (a.left < b.left || (a.left == b.left && a.top <= b.top)) break;
+            Monitor t = gMons[j]; gMons[j] = gMons[j - 1]; gMons[j - 1] = t;
+        }
+}
+
+// The chosen screen, or the primary one if it is unset or no longer connected.
+static int SelectedMonitor() {
+    int primary = 0;
+    for (int i = 0; i < gMonCount; ++i) {
+        if (gScreen[0] && wcscmp(gMons[i].dev, gScreen) == 0) return i;
+        if (gMons[i].primary) primary = i;
+    }
+    return primary;
+}
+
+static POINT ScreenCenter() {
+    if (gMonCount == 0) RefreshMonitors();
+    const RECT& r = gMons[SelectedMonitor()].rc;
+    return { r.left + (r.right - r.left) / 2, r.top + (r.bottom - r.top) / 2 };
+}
+
+static void FillScreenCombo();
 
 // Rasterises the crosshair into a premultiplied BGRA bitmap and pushes it to
 // the layered window. Only runs when a setting changes, so idle cost is zero.
@@ -186,7 +229,7 @@ static void ApplyOverlay() {
     }
     free(a);
 
-    POINT c = PrimaryCenter(), src = { 0, 0 };
+    POINT c = ScreenCenter(), src = { 0, 0 };
     POINT dst = { c.x - R + g.x, c.y - R + g.y };
     SIZE size = { W, W };
     BLENDFUNCTION blend = { AC_SRC_OVER, 0, 255, AC_SRC_ALPHA };
@@ -203,7 +246,11 @@ static void ApplyOverlay() {
 static LRESULT CALLBACK OverlayProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
     case WM_NCHITTEST: return HTTRANSPARENT;
-    case WM_DISPLAYCHANGE: ApplyOverlay(); return 0;
+    case WM_DISPLAYCHANGE:  // screen added/removed/rearranged
+        RefreshMonitors();
+        FillScreenCombo();
+        ApplyOverlay();
+        return 0;
     case WM_TIMER:  // borderless games can climb above us; quietly stay on top
         if (g.visible)
             SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
@@ -223,6 +270,24 @@ static HWND Ctl(DWORD ex, const wchar_t* cls, const wchar_t* text, DWORD style,
 static BOOL CALLBACK SetFontProc(HWND child, LPARAM font) {
     SendMessageW(child, WM_SETFONT, (WPARAM)font, TRUE);
     return TRUE;
+}
+
+// Lists screens left-to-right as "N: WxH", N being Windows' own display number.
+static void FillScreenCombo() {
+    HWND combo = gMain ? GetDlgItem(gMain, IDC_SCREEN) : nullptr;
+    if (!combo) return;
+    SendMessageW(combo, CB_RESETCONTENT, 0, 0);
+    for (int i = 0; i < gMonCount; ++i) {
+        const Monitor& m = gMons[i];
+        const wchar_t* num = m.dev + wcslen(m.dev);
+        while (num > m.dev && iswdigit(num[-1])) --num;
+        wchar_t label[96];
+        wsprintfW(label, L"%s: %dx%d%s", *num ? num : L"?", m.rc.right - m.rc.left,
+                  m.rc.bottom - m.rc.top, m.primary ? L" (main)" : L"");
+        SendMessageW(combo, CB_ADDSTRING, 0, (LPARAM)label);
+    }
+    SendMessageW(combo, CB_SETCURSEL, SelectedMonitor(), 0);
+    EnableWindow(combo, gMonCount > 1);
 }
 
 static void UpdateSwatch() {
@@ -262,6 +327,11 @@ static void BuildUi(HWND hwnd) {
                      C, y, CW, 200, IDC_STYLE);
     for (const wchar_t* s : kStyles) SendMessageW(combo, CB_ADDSTRING, 0, (LPARAM)s);
     SendMessageW(combo, CB_SETCURSEL, g.style, 0);
+    y += ROW;
+
+    Ctl(0, L"STATIC", L"Screen", 0, L, y + 4, 80, 20, -1);
+    Ctl(0, WC_COMBOBOXW, nullptr, CBS_DROPDOWNLIST | WS_TABSTOP | WS_VSCROLL, C, y, CW, 200, IDC_SCREEN);
+    FillScreenCombo();
     y += ROW;
 
     Ctl(0, L"STATIC", L"Color", 0, L, y + 4, 80, 20, -1);
@@ -395,7 +465,11 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             }
             return 0;
         }
-        if (id == IDC_STYLE && code == CBN_SELCHANGE) {
+        if (id == IDC_SCREEN && code == CBN_SELCHANGE) {
+            int sel = (int)SendMessageW((HWND)lp, CB_GETCURSEL, 0, 0);
+            if (sel >= 0 && sel < gMonCount) wcscpy(gScreen, gMons[sel].dev);
+            ApplyOverlay();
+        } else if (id == IDC_STYLE && code == CBN_SELCHANGE) {
             g.style = (int)SendMessageW((HWND)lp, CB_GETCURSEL, 0, 0);
             ApplyOverlay();
         } else if (id == IDC_COLOR) {

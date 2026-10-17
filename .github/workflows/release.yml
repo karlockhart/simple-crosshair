@@ -1,0 +1,95 @@
+# Builds SimpleCrosshair.exe when a version tag (v*) is pushed and publishes it as a GitHub
+# Release together with SHA256SUMS.txt.
+#
+# The exe is attached exactly as the compiler produced it: no UPX or any other packer, since
+# packed executables are a common antivirus false-positive trigger.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write  # needed to create the release and upload assets
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Use the runner's preinstalled MSYS2 and add the UCRT64 MinGW-w64 toolchain (g++, windres).
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          release: false
+          update: false
+          install: mingw-w64-ucrt-x86_64-gcc
+
+      - name: Build
+        shell: cmd
+        run: |
+          set PATH=C:\msys64\ucrt64\bin;%PATH%
+          g++ --version
+          call build.bat
+
+      # --- Code signing (disabled placeholder) ------------------------------------------------
+      # A trusted signature is the best way to stop SmartScreen and antivirus warnings. Signing
+      # must happen here, before the checksums, so SHA256SUMS.txt matches the signed exe.
+      # Pick one option, set up its secrets, uncomment it and delete this placeholder step.
+      #
+      # Option A: SignPath Foundation (free for open source, https://signpath.org).
+      #   Upload the unsigned exe as an artifact, then submit it for signing:
+      #
+      # - uses: actions/upload-artifact@v4
+      #   id: unsigned
+      #   with:
+      #     name: unsigned
+      #     path: SimpleCrosshair.exe
+      # - uses: signpath/github-action-submit-signing-request@v1
+      #   with:
+      #     api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+      #     organization-id: <your SignPath organization id>
+      #     project-slug: simple-crosshair
+      #     signing-policy-slug: release-signing
+      #     github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+      #     wait-for-completion: true
+      #     output-artifact-directory: signed
+      # - shell: pwsh
+      #   run: Copy-Item signed\SimpleCrosshair.exe . -Force
+      #
+      # Option B: Azure Trusted Signing (https://learn.microsoft.com/azure/trusted-signing/).
+      #
+      # - uses: azure/trusted-signing-action@v0
+      #   with:
+      #     azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+      #     azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+      #     azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+      #     endpoint: https://<region>.codesigning.azure.net/
+      #     trusted-signing-account-name: <account name>
+      #     certificate-profile-name: <certificate profile name>
+      #     files-folder: ${{ github.workspace }}
+      #     files-folder-filter: exe
+      #     file-digest: SHA256
+      #     timestamp-rfc3161: http://timestamp.acs.microsoft.com
+      #     timestamp-digest: SHA256
+      - name: Code signing (disabled placeholder)
+        if: ${{ false }}
+        shell: pwsh
+        run: Write-Host "Code signing is not set up yet. See the comments above this step."
+      # -----------------------------------------------------------------------------------------
+
+      - name: Write SHA256SUMS.txt
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash SimpleCrosshair.exe -Algorithm SHA256).Hash.ToLower()
+          [IO.File]::WriteAllText("SHA256SUMS.txt", "$hash  SimpleCrosshair.exe`n")
+          Get-Content SHA256SUMS.txt
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$env:GITHUB_REF_NAME" SimpleCrosshair.exe SHA256SUMS.txt --title "$env:GITHUB_REF_NAME" --generate-notes

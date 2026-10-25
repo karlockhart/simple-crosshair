@@ -88,8 +88,18 @@ jobs:
           [IO.File]::WriteAllText("SHA256SUMS.txt", "$hash  SimpleCrosshair.exe`n")
           Get-Content SHA256SUMS.txt
 
-      - name: Create GitHub Release
+      - name: Create or update GitHub Release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$env:GITHUB_REF_NAME" SimpleCrosshair.exe SHA256SUMS.txt --title "$env:GITHUB_REF_NAME" --generate-notes
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          gh release view $tag --json tagName *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag SimpleCrosshair.exe SHA256SUMS.txt --clobber
+          } else {
+            gh release create $tag SimpleCrosshair.exe SHA256SUMS.txt --title $tag --generate-notes
+          }
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }

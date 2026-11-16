@@ -1,4 +1,5 @@
-"""Generates simple-crosshair.ico (16-256 px) and a 256 px PNG preview.
+"""Generates simple-crosshair.ico (16-256 px), a 256 px PNG preview, and the MSIX/Store logos
+in store/Assets.
 
 Large sizes: dark rounded badge, neon crosshair with a segmented ring and a soft glow,
 rendered at 4x and downsampled. Sizes <= 24 px are drawn pixel by pixel so the tray and
@@ -18,6 +19,7 @@ SIZES = [16, 20, 24, 32, 40, 48, 64, 128, 256]
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_ICO = os.path.join(HERE, "..", "simple-crosshair.ico")
 OUT_PNG = os.path.join(HERE, "..", "icon-preview.png")
+OUT_ASSETS = os.path.join(HERE, "..", "store", "Assets")
 
 
 def badge(size, inset, radius, border):
@@ -105,8 +107,40 @@ def write_ico(path, images):
             f.write(blob)
 
 
+def icon(size):
+    return small(size) if size <= 24 else large(size)
+
+
+def padded(size, fill):
+    """The icon at `fill` of the canvas, centred on transparency (for tiles)."""
+    out = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    inner = icon(round(size * fill))
+    off = (size - inner.width) // 2
+    out.alpha_composite(inner, (off, off))
+    return out
+
+
+def write_store_assets():
+    """MSIX logos for store/Assets (see pack.ps1). The icon has its own dark badge, so the
+    taskbar/Start versions are 'unplated' (no accent-colour plate behind them)."""
+    os.makedirs(OUT_ASSETS, exist_ok=True)
+    files = {}
+    for scale in (100, 125, 150, 200, 400):
+        files[f"Square44x44Logo.scale-{scale}.png"] = icon(44 * scale // 100)
+        files[f"Square150x150Logo.scale-{scale}.png"] = padded(150 * scale // 100, 0.62)
+        files[f"StoreLogo.scale-{scale}.png"] = icon(50 * scale // 100)
+    for n in (16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 256):
+        for suffix in ("", "_altform-unplated", "_altform-lightunplated"):
+            files[f"Square44x44Logo.targetsize-{n}{suffix}.png"] = icon(n)
+    for name, im in files.items():
+        im.save(os.path.join(OUT_ASSETS, name))
+    return len(files)
+
+
 if __name__ == "__main__":
-    images = [small(n) if n <= 24 else large(n) for n in SIZES]
+    images = [icon(n) for n in SIZES]
     write_ico(OUT_ICO, images)
     images[-1].save(OUT_PNG)
-    print("wrote", os.path.normpath(OUT_ICO), "and", os.path.normpath(OUT_PNG))
+    count = write_store_assets()
+    print("wrote", os.path.normpath(OUT_ICO), os.path.normpath(OUT_PNG),
+          f"and {count} logos in", os.path.normpath(OUT_ASSETS))

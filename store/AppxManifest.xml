@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MSIX manifest template. pack.ps1 fills in the $(...) values from store/store.json. -->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity Name="$(IdentityName)" Publisher="$(Publisher)" Version="$(Version)" ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>Simple Crosshair</DisplayName>
+    <PublisherDisplayName>$(PublisherDisplayName)</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application Id="SimpleCrosshair" Executable="SimpleCrosshair.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Simple Crosshair"
+        Description="A minimal, click-through crosshair overlay for games."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png" />
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- Required for every packaged desktop (Win32) app. -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

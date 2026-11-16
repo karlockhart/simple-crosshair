@@ -5,7 +5,8 @@ screen using one transparent, click-through, always-on-top window, and nothing e
 touches the game: it doesn't know or care which program is underneath it.
 
 - One file of C++ using the plain Win32 API, no third-party libraries
-- No installer; settings are saved to `SimpleCrosshair.ini` next to the exe
+- No installer; settings are saved to `SimpleCrosshair.ini` next to the exe (the Microsoft
+  Store/MSIX build keeps them in its own app data folder instead; see [STORE.md](STORE.md))
 - Runs from the system tray
 - Runs as a normal user (`asInvoker` manifest); never asks for admin rights
 - Not packed or obfuscated (no UPX), so what you download is what the compiler produced

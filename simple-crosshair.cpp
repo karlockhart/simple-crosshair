@@ -3,7 +3,8 @@
 // It only draws a small, click-through, always-on-top image at the centre of
 // the chosen monitor. By design it does NOT read or write other processes'
 // memory, inject DLLs, hook DirectX/input, capture the screen, look for game
-// windows, or need admin rights. Settings live in SimpleCrosshair.ini next to the exe.
+// windows, or need admin rights. Settings live in SimpleCrosshair.ini next to the exe
+// (or in %LOCALAPPDATA%\SimpleCrosshair for the Microsoft Store/MSIX build).
 
 #ifndef UNICODE
 #define UNICODE
@@ -79,10 +80,29 @@ static void WriteInt(const wchar_t* key, int v) {
     WritePrivateProfileStringW(L"Crosshair", key, buf, gIni);
 }
 
+// True when running from an MSIX package (e.g. the Microsoft Store build).
+static bool IsPackaged() {
+    typedef LONG(WINAPI * Fn)(UINT32*, PWSTR);
+    Fn fn = (Fn)(void*)GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "GetCurrentPackageFullName");
+    UINT32 len = 0;
+    return fn && fn(&len, nullptr) != APPMODEL_ERROR_NO_PACKAGE;
+}
+
 static void LoadSettings() {
-    GetModuleFileNameW(nullptr, gIni, MAX_PATH);
-    wchar_t* ext = wcsrchr(gIni, L'.');
-    if (ext) wcscpy(ext, L".ini");
+    // Portable: SimpleCrosshair.ini next to the exe. Packaged: the install folder is read-only,
+    // so it lives in %LOCALAPPDATA%\SimpleCrosshair (Windows keeps that per package and removes
+    // it on uninstall).
+    wchar_t dir[MAX_PATH];
+    DWORD n = IsPackaged() ? GetEnvironmentVariableW(L"LOCALAPPDATA", dir, MAX_PATH) : 0;
+    if (n && n < MAX_PATH - 40) {
+        wcscat(dir, L"\\SimpleCrosshair");
+        CreateDirectoryW(dir, nullptr);
+        wsprintfW(gIni, L"%s\\SimpleCrosshair.ini", dir);
+    } else {
+        GetModuleFileNameW(nullptr, gIni, MAX_PATH);
+        wchar_t* ext = wcsrchr(gIni, L'.');
+        if (ext) wcscpy(ext, L".ini");
+    }
 
     g.style = Clamp(ReadInt(L"Style", g.style), 0, ST_COUNT - 1);
     g.opacity = Clamp(ReadInt(L"Opacity", g.opacity), 10, 100);

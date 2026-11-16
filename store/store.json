@@ -1,0 +1,8 @@
+{
+  "IdentityName": "<Partner Center: Product identity, Package/Identity/Name>",
+  "Publisher": "<Partner Center: Product identity, Package/Identity/Publisher (CN=...)>",
+  "PublisherDisplayName": "<Partner Center: Product identity, Package/Properties/PublisherDisplayName>",
+  "DirectIdentityName": "KarlLockhart.SimpleCrosshair",
+  "DirectPublisher": "CN=Karl Lockhart, O=Karl Lockhart, L=Bedford, S=tx, C=US",
+  "DirectPublisherDisplayName": "Karl Lockhart"
+}

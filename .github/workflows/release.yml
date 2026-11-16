@@ -1,8 +1,12 @@
-# Builds SimpleCrosshair.exe when a version tag (v*) is pushed and publishes it as a GitHub
-# Release together with SHA256SUMS.txt.
+# Builds SimpleCrosshair.exe when a version tag (v*) is pushed, signs it with Azure Artifact
+# Signing, and publishes it as a GitHub Release together with SHA256SUMS.txt.
 #
-# The exe is attached exactly as the compiler produced it: no UPX or any other packer, since
-# packed executables are a common antivirus false-positive trigger.
+# The exe is attached exactly as the compiler produced it (plus the signature): no UPX or any
+# other packer, since packed executables are a common antivirus false-positive trigger.
+#
+# Signing setup (SIGNING.md): a "signing" environment, limited to v* tags, holding the secrets
+# AZURE_CLIENT_ID and AZURE_TENANT_ID for an Entra app that may sign. It signs in to Azure with
+# OIDC, so no password or client secret is stored anywhere.
 
 name: Release
 
@@ -13,10 +17,12 @@ on:
 
 permissions:
   contents: write  # needed to create the release and upload assets
+  id-token: write  # needed to sign in to Azure with OIDC
 
 jobs:
   release:
     runs-on: windows-latest
+    environment: signing
     steps:
       - uses: actions/checkout@v4
 
@@ -35,51 +41,20 @@ jobs:
           g++ --version
           call build.bat
 
-      # --- Code signing (disabled placeholder) ------------------------------------------------
-      # A trusted signature is the best way to stop SmartScreen and antivirus warnings. Signing
-      # must happen here, before the checksums, so SHA256SUMS.txt matches the signed exe.
-      # Pick one option, set up its secrets, uncomment it and delete this placeholder step.
-      #
-      # Option A: SignPath Foundation (free for open source, https://signpath.org).
-      #   Upload the unsigned exe as an artifact, then submit it for signing:
-      #
-      # - uses: actions/upload-artifact@v4
-      #   id: unsigned
-      #   with:
-      #     name: unsigned
-      #     path: SimpleCrosshair.exe
-      # - uses: signpath/github-action-submit-signing-request@v1
-      #   with:
-      #     api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-      #     organization-id: <your SignPath organization id>
-      #     project-slug: simple-crosshair
-      #     signing-policy-slug: release-signing
-      #     github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
-      #     wait-for-completion: true
-      #     output-artifact-directory: signed
-      # - shell: pwsh
-      #   run: Copy-Item signed\SimpleCrosshair.exe . -Force
-      #
-      # Option B: Azure Trusted Signing (https://learn.microsoft.com/azure/trusted-signing/).
-      #
-      # - uses: azure/trusted-signing-action@v0
-      #   with:
-      #     azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-      #     azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
-      #     azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-      #     endpoint: https://<region>.codesigning.azure.net/
-      #     trusted-signing-account-name: <account name>
-      #     certificate-profile-name: <certificate profile name>
-      #     files-folder: ${{ github.workspace }}
-      #     files-folder-filter: exe
-      #     file-digest: SHA256
-      #     timestamp-rfc3161: http://timestamp.acs.microsoft.com
-      #     timestamp-digest: SHA256
-      - name: Code signing (disabled placeholder)
-        if: ${{ false }}
+      # Signing must happen before the checksums, so SHA256SUMS.txt matches the signed exe.
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x  # Microsoft's signing client runs on .NET 10
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Sign
         shell: pwsh
-        run: Write-Host "Code signing is not set up yet. See the comments above this step."
-      # -----------------------------------------------------------------------------------------
+        run: ./sign.ps1 SimpleCrosshair.exe
 
       - name: Write SHA256SUMS.txt
         shell: pwsh

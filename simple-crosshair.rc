@@ -1,5 +1,6 @@
 #include <winver.h>
 
+1 ICON "simple-crosshair.ico"
 1 24 "simple-crosshair.manifest"
 
 1 VERSIONINFO

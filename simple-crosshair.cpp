@@ -1011,30 +1011,6 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
 
-// Small green crosshair for the taskbar/title bar, drawn at runtime.
-static HICON MakeIcon(int n) {
-    BITMAPINFO bi = {};
-    bi.bmiHeader = { sizeof(BITMAPINFOHEADER), n, -n, 1, 32, BI_RGB };
-    void* bits = nullptr;
-    HBITMAP color = CreateDIBSection(nullptr, &bi, DIB_RGB_COLORS, &bits, nullptr, 0);
-    DWORD* px = (DWORD*)bits;
-    const int c = n / 2, t = n >= 32 ? 4 : 2, gap = n / 8;
-    for (int y = 0; y < n; ++y)
-        for (int x = 0; x < n; ++x) {
-            bool h = y >= c - t / 2 && y < c + t / 2 && abs(x - c) >= gap;
-            bool v = x >= c - t / 2 && x < c + t / 2 && abs(y - c) >= gap;
-            px[y * n + x] = (h || v) ? 0xFF20E040 : 0;
-        }
-    BYTE* zero = (BYTE*)calloc(n * n / 8 + n, 1);
-    HBITMAP mask = CreateBitmap(n, n, 1, 1, zero);
-    free(zero);
-    ICONINFO ii = { TRUE, 0, 0, mask, color };
-    HICON icon = CreateIconIndirect(&ii);
-    DeleteObject(mask);
-    DeleteObject(color);
-    return icon;
-}
-
 int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     // One instance only; a second launch just brings the settings window back.
     CreateMutexW(nullptr, TRUE, L"SimpleCrosshair.SingleInstance");
@@ -1060,8 +1036,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     wc.lpfnWndProc = MainProc;
     wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
     wc.hbrBackground = CreateSolidBrush(RGB(BG >> 16, (BG >> 8) & 255, BG & 255));
-    wc.hIcon = MakeIcon(S(32));
-    wc.hIconSm = gIconSm = MakeIcon(GetSystemMetricsForDpi(SM_CXSMICON, gDpi));
+    const int big = GetSystemMetricsForDpi(SM_CXICON, gDpi), sm = GetSystemMetricsForDpi(SM_CXSMICON, gDpi);
+    wc.hIcon = (HICON)LoadImageW(inst, MAKEINTRESOURCEW(1), IMAGE_ICON, big, big, 0);
+    wc.hIconSm = gIconSm = (HICON)LoadImageW(inst, MAKEINTRESOURCEW(1), IMAGE_ICON, sm, sm, 0);
     gTaskbarCreated = RegisterWindowMessageW(L"TaskbarCreated");
     wc.lpszClassName = L"SimpleCrosshairMain";
     RegisterClassExW(&wc);

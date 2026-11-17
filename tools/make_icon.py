@@ -1,4 +1,4 @@
-"""Generates simple-crosshair.ico (16-256 px), a 256 px PNG preview, and the MSIX/Store logos
+"""Generates neonsight.ico (16-256 px), a 256 px PNG preview, and the MSIX/Store logos
 in store/Assets.
 
 Large sizes: dark rounded badge, neon crosshair with a segmented ring and a soft glow,
@@ -17,7 +17,7 @@ BG_BOTTOM = (10, 12, 17)
 BORDER = (46, 54, 70)
 SIZES = [16, 20, 24, 32, 40, 48, 64, 128, 256]
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT_ICO = os.path.join(HERE, "..", "simple-crosshair.ico")
+OUT_ICO = os.path.join(HERE, "..", "neonsight.ico")
 OUT_PNG = os.path.join(HERE, "..", "icon-preview.png")
 OUT_ASSETS = os.path.join(HERE, "..", "store", "Assets")
 

@@ -1,11 +1,13 @@
-# Simple Crosshair
+# NeonSight
 
-A small (~30 KB) crosshair overlay for Windows. It draws a crosshair in the middle of your
+*Formerly Simple Crosshair.* Get it from [Releases](https://github.com/karlockhart/simple-crosshair/releases), or soon from the [Microsoft Store](https://apps.microsoft.com/detail/9PC0T9FXQ3HW).
+
+A small (~110 KB) crosshair overlay for Windows. It draws a crosshair in the middle of your
 screen using one transparent, click-through, always-on-top window, and nothing else. It never
 touches the game: it doesn't know or care which program is underneath it.
 
 - One file of C++ using the plain Win32 API, no third-party libraries
-- No installer; settings are saved to `SimpleCrosshair.ini` next to the exe (the Microsoft
+- No installer; settings are saved to `NeonSight.ini` next to the exe (the Microsoft
   Store/MSIX build keeps them in its own app data folder instead; see [STORE.md](STORE.md))
 - Runs from the system tray
 - Runs as a normal user (`asInvoker` manifest); never asks for admin rights
@@ -13,7 +15,7 @@ touches the game: it doesn't know or care which program is underneath it.
 
 ## What this app does NOT do
 
-Simple Crosshair is built so that it has nothing in common with cheats. It does **not**:
+NeonSight is built so that it has nothing in common with cheats. It does **not**:
 
 - **Read or write the memory** of any other process
 - **Inject DLLs** or any code into other processes
@@ -43,7 +45,7 @@ competition before you use it.
 
 ## Usage
 
-Run `SimpleCrosshair.exe`. The settings window opens and the crosshair shows on your screen.
+Run `NeonSight.exe`. The settings window opens and the crosshair shows on your screen.
 
 | Setting   | What it does |
 |-----------|--------------|
@@ -64,7 +66,7 @@ Run `SimpleCrosshair.exe`. The settings window opens and the crosshair shows on 
   menu, then choose **Exit** to quit.
 - Running the exe again while it's already running just brings the settings window back.
 
-Settings are saved to `SimpleCrosshair.ini` in the same folder as the exe. Delete it to reset
+Settings are saved to `NeonSight.ini` in the same folder as the exe. Delete it to reset
 everything.
 
 ## Supported display modes
@@ -92,18 +94,18 @@ then run:
 build.bat
 ```
 
-This produces a single, statically linked `SimpleCrosshair.exe` that needs no runtime DLLs.
+This produces a single, statically linked `NeonSight.exe` that needs no runtime DLLs.
 The build doesn't pack or compress the exe; please don't run UPX or similar packers on it,
 because packed executables are a common antivirus false-positive trigger.
 
 ## Releases
 
 Pushing a tag such as `v1.0.0` runs [`.github/workflows/release.yml`](.github/workflows/release.yml),
-which builds the exe on GitHub's Windows runner and attaches `SimpleCrosshair.exe` and
+which builds the exe on GitHub's Windows runner and attaches `NeonSight.exe` and
 `SHA256SUMS.txt` to a GitHub Release. To verify a download in PowerShell:
 
 ```powershell
-Get-FileHash .\SimpleCrosshair.exe -Algorithm SHA256
+Get-FileHash .\NeonSight.exe -Algorithm SHA256
 ```
 
 and compare the hash with the one in `SHA256SUMS.txt`.

@@ -1,10 +1,10 @@
-// Simple Crosshair - a minimal crosshair overlay for Windows.
+// NeonSight (formerly Simple Crosshair) - a minimal crosshair overlay for Windows.
 //
 // It only draws a small, click-through, always-on-top image at the centre of
 // the chosen monitor. By design it does NOT read or write other processes'
 // memory, inject DLLs, hook DirectX/input, capture the screen, look for game
-// windows, or need admin rights. Settings live in SimpleCrosshair.ini next to the exe
-// (or in %LOCALAPPDATA%\SimpleCrosshair for the Microsoft Store/MSIX build).
+// windows, or need admin rights. Settings live in NeonSight.ini next to the exe
+// (or in %LOCALAPPDATA%\NeonSight for the Microsoft Store/MSIX build).
 
 #ifndef UNICODE
 #define UNICODE
@@ -89,19 +89,28 @@ static bool IsPackaged() {
 }
 
 static void LoadSettings() {
-    // Portable: SimpleCrosshair.ini next to the exe. Packaged: the install folder is read-only,
-    // so it lives in %LOCALAPPDATA%\SimpleCrosshair (Windows keeps that per package and removes
+    // Portable: NeonSight.ini next to the exe. Packaged: the install folder is read-only,
+    // so it lives in %LOCALAPPDATA%\NeonSight (Windows keeps that per package and removes
     // it on uninstall).
     wchar_t dir[MAX_PATH];
     DWORD n = IsPackaged() ? GetEnvironmentVariableW(L"LOCALAPPDATA", dir, MAX_PATH) : 0;
     if (n && n < MAX_PATH - 40) {
-        wcscat(dir, L"\\SimpleCrosshair");
+        wcscat(dir, L"\\NeonSight");
         CreateDirectoryW(dir, nullptr);
-        wsprintfW(gIni, L"%s\\SimpleCrosshair.ini", dir);
+        wsprintfW(gIni, L"%s\\NeonSight.ini", dir);
     } else {
         GetModuleFileNameW(nullptr, gIni, MAX_PATH);
         wchar_t* ext = wcsrchr(gIni, L'.');
         if (ext) wcscpy(ext, L".ini");
+        // Carry over settings from before the rename (SimpleCrosshair.ini in the same folder).
+        wchar_t* slash = wcsrchr(gIni, L'\\');
+        if (slash && GetFileAttributesW(gIni) == INVALID_FILE_ATTRIBUTES &&
+            slash - gIni < MAX_PATH - 24) {
+            wchar_t old[MAX_PATH];
+            wcsncpy(old, gIni, slash - gIni + 1);
+            wcscpy(old + (slash - gIni + 1), L"SimpleCrosshair.ini");
+            CopyFileW(old, gIni, TRUE);
+        }
     }
 
     g.style = Clamp(ReadInt(L"Style", g.style), 0, ST_COUNT - 1);
@@ -554,7 +563,7 @@ static float Layout() {
 
     // Header: brand + live status.
     Fill(RC(M, y + 3, M + 4, y + 25), 2, C(acc));
-    Text(L"SIMPLE CROSSHAIR", RC(M + 14, y, M + 260, y + 28), fBrand, C(TEXT));
+    Text(L"NEONSIGHT", RC(M + 14, y, M + 260, y + 28), fBrand, C(TEXT));
     StatusPill(RC(CW - M - 104, y + 2, CW - M, y + 26), acc);
     y += 28 + 16;
 
@@ -824,7 +833,7 @@ static void AddTrayIcon() {
     nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     nid.uCallbackMessage = WM_TRAY;
     nid.hIcon = gIconSm;
-    wcscpy(nid.szTip, L"Simple Crosshair");
+    wcscpy(nid.szTip, L"NeonSight");
     Shell_NotifyIconW(NIM_ADD, &nid);
     UpdateStatus(false);
 }
@@ -837,9 +846,9 @@ static void UpdateStatus(bool notify) {
     nid.hWnd = gMain;
     nid.uID = 1;
     nid.uFlags = NIF_TIP;
-    wcscpy(nid.szTip, !g.visible ? L"Simple Crosshair - hidden"
-                    : gExclusive ? L"Simple Crosshair - blocked by exclusive fullscreen"
-                                 : L"Simple Crosshair - showing");
+    wcscpy(nid.szTip, !g.visible ? L"NeonSight - hidden"
+                    : gExclusive ? L"NeonSight - blocked by exclusive fullscreen"
+                                 : L"NeonSight - showing");
     if (notify) {
         nid.uFlags |= NIF_INFO;
         nid.dwInfoFlags = NIIF_INFO;
@@ -1033,9 +1042,9 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
 int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     // One instance only; a second launch just brings the settings window back.
-    CreateMutexW(nullptr, TRUE, L"SimpleCrosshair.SingleInstance");
+    CreateMutexW(nullptr, TRUE, L"NeonSight.SingleInstance");
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        if (HWND existing = FindWindowW(L"SimpleCrosshairMain", nullptr)) {
+        if (HWND existing = FindWindowW(L"NeonSightMain", nullptr)) {
             ShowWindow(existing, IsIconic(existing) ? SW_RESTORE : SW_SHOW);
             SetForegroundWindow(existing);
         }
@@ -1049,7 +1058,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     WNDCLASSEXW wc = { sizeof(wc) };
     wc.lpfnWndProc = OverlayProc;
     wc.hInstance = inst;
-    wc.lpszClassName = L"SimpleCrosshairOverlay";
+    wc.lpszClassName = L"NeonSightOverlay";
     RegisterClassExW(&wc);
 
     wc.style = CS_DBLCLKS;
@@ -1060,13 +1069,13 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     wc.hIcon = (HICON)LoadImageW(inst, MAKEINTRESOURCEW(1), IMAGE_ICON, big, big, 0);
     wc.hIconSm = gIconSm = (HICON)LoadImageW(inst, MAKEINTRESOURCEW(1), IMAGE_ICON, sm, sm, 0);
     gTaskbarCreated = RegisterWindowMessageW(L"TaskbarCreated");
-    wc.lpszClassName = L"SimpleCrosshairMain";
+    wc.lpszClassName = L"NeonSightMain";
     RegisterClassExW(&wc);
 
     // Layered + transparent = fully click-through; toolwindow keeps it out of Alt+Tab.
     gOverlay = CreateWindowExW(WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_TOOLWINDOW |
                                WS_EX_NOACTIVATE,
-                               L"SimpleCrosshairOverlay", L"Simple Crosshair Overlay", WS_POPUP, 0, 0, 1, 1,
+                               L"NeonSightOverlay", L"NeonSight Overlay", WS_POPUP, 0, 0, 1, 1,
                                nullptr, nullptr, inst, nullptr);
     SetTimer(gOverlay, TIMER_TOPMOST, 500, nullptr);
     SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, nullptr, OnForegroundChanged, 0, 0,
@@ -1076,7 +1085,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     const DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
     RECT rc = { 0, 0, S((int)CW), (int)ceilf(Layout() * gDpi / 96.f) };  // measure-only pass
     AdjustWindowRectExForDpi(&rc, style, FALSE, 0, gDpi);
-    CreateWindowExW(0, L"SimpleCrosshairMain", L"Simple Crosshair", style, CW_USEDEFAULT, CW_USEDEFAULT,
+    CreateWindowExW(0, L"NeonSightMain", L"NeonSight", style, CW_USEDEFAULT, CW_USEDEFAULT,
                     rc.right - rc.left, rc.bottom - rc.top, nullptr, nullptr, inst, nullptr);
     ShowWindow(gMain, show);
 

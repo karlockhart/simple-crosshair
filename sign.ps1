@@ -9,7 +9,7 @@
   under %LOCALAPPDATA%\ArtifactSigning. See SIGNING.md for the one-time setup.
 
 .EXAMPLE
-  .\sign.ps1 SimpleCrosshair.exe
+  .\sign.ps1 NeonSight.exe
 #>
 [CmdletBinding()]
 param(

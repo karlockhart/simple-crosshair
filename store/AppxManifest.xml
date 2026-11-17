@@ -9,7 +9,7 @@
   <Identity Name="$(IdentityName)" Publisher="$(Publisher)" Version="$(Version)" ProcessorArchitecture="x64" />
 
   <Properties>
-    <DisplayName>Simple Crosshair</DisplayName>
+    <DisplayName>NeonSight</DisplayName>
     <PublisherDisplayName>$(PublisherDisplayName)</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
@@ -23,9 +23,9 @@
   </Resources>
 
   <Applications>
-    <Application Id="SimpleCrosshair" Executable="SimpleCrosshair.exe" EntryPoint="Windows.FullTrustApplication">
+    <Application Id="NeonSight" Executable="NeonSight.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="Simple Crosshair"
+        DisplayName="NeonSight"
         Description="A minimal, click-through crosshair overlay for games."
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"

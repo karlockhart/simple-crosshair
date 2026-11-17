@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Packages SimpleCrosshair.exe as an MSIX.
+  Packages NeonSight.exe as an MSIX.
 
 .DESCRIPTION
   pack.ps1          Microsoft Store build: uses the identity Partner Center gave the app
@@ -10,7 +10,7 @@
                     is signed with Azure Artifact Signing (sign.ps1), so it installs by
                     double-click on any Windows 10/11 PC. Also the way to test the package locally.
 
-  Build SimpleCrosshair.exe first (build.bat). The version comes from simple-crosshair.rc
+  Build NeonSight.exe first (build.bat). The version comes from neonsight.rc
   (FILEVERSION); the Store needs the last part to be 0. See STORE.md.
 
 .EXAMPLE
@@ -19,18 +19,18 @@
 [CmdletBinding()]
 param(
     [switch] $Direct,
-    [string] $Version  # default: FILEVERSION in simple-crosshair.rc, e.g. 1.0.0.0
+    [string] $Version  # default: FILEVERSION in neonsight.rc, e.g. 1.0.0.0
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$exe = Join-Path $root 'SimpleCrosshair.exe'
-if (-not (Test-Path $exe)) { throw 'SimpleCrosshair.exe not found. Run build.bat first.' }
+$exe = Join-Path $root 'NeonSight.exe'
+if (-not (Test-Path $exe)) { throw 'NeonSight.exe not found. Run build.bat first.' }
 
 if (-not $Version) {
-    $m = Select-String -Path (Join-Path $root 'simple-crosshair.rc') -Pattern '^\s*FILEVERSION\s+(\d+),\s*(\d+),\s*(\d+),\s*(\d+)'
-    if (-not $m) { throw 'No FILEVERSION in simple-crosshair.rc. Pass -Version 1.2.3.0' }
+    $m = Select-String -Path (Join-Path $root 'neonsight.rc') -Pattern '^\s*FILEVERSION\s+(\d+),\s*(\d+),\s*(\d+),\s*(\d+)'
+    if (-not $m) { throw 'No FILEVERSION in neonsight.rc. Pass -Version 1.2.3.0' }
     $Version = ($m.Matches[0].Groups[1..4] | ForEach-Object { $_.Value }) -join '.'
 }
 if ($Version -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw "Version must have four parts, e.g. 1.2.3.0 (got $Version)." }
@@ -84,7 +84,7 @@ if ($LASTEXITCODE -ne 0) { throw "makepri createconfig failed ($LASTEXITCODE)." 
 if ($LASTEXITCODE -ne 0) { throw "makepri new failed ($LASTEXITCODE)." }
 
 $suffix = if ($Direct) { '' } else { '-store' }
-$out = Join-Path $root "SimpleCrosshair-$Version$suffix.msix"
+$out = Join-Path $root "NeonSight-$Version$suffix.msix"
 & $makeappx pack /d $layout /p $out /o | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "makeappx pack failed ($LASTEXITCODE)." }
 Remove-Item -Recurse -Force $work

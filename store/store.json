@@ -1,8 +1,8 @@
 {
-  "IdentityName": "<Partner Center: Product identity, Package/Identity/Name>",
-  "Publisher": "<Partner Center: Product identity, Package/Identity/Publisher (CN=...)>",
-  "PublisherDisplayName": "<Partner Center: Product identity, Package/Properties/PublisherDisplayName>",
-  "DirectIdentityName": "KarlLockhart.SimpleCrosshair",
+  "IdentityName": "synnr.co.NeonSight",
+  "Publisher": "CN=DD8828A6-E673-4691-B855-6A8DA3815FAC",
+  "PublisherDisplayName": "synnr.co",
+  "DirectIdentityName": "KarlLockhart.NeonSight",
   "DirectPublisher": "CN=Karl Lockhart, O=Karl Lockhart, L=Bedford, S=tx, C=US",
-  "DirectPublisherDisplayName": "Karl Lockhart"
+  "DirectPublisherDisplayName": "synnr.co"
 }

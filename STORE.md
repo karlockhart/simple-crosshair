@@ -1,6 +1,6 @@
 # Microsoft Store
 
-Simple Crosshair ships to the Store as an **MSIX** package. The Store signs and hosts it, and
+NeonSight (formerly Simple Crosshair) ships to the Store ([Store ID 9PC0T9FXQ3HW](https://apps.microsoft.com/detail/9PC0T9FXQ3HW)) as an **MSIX** package. The Store signs and hosts it, and
 Windows installs, updates and uninstalls it cleanly. The same package can also be installed
 outside the Store, signed with your own certificate (see [SIGNING.md](SIGNING.md)).
 
@@ -11,7 +11,7 @@ outside the Store, signed with your own certificate (see [SIGNING.md](SIGNING.md
 
 The packaged app keeps its settings in its own private `%LOCALAPPDATA%` folder, because the
 install folder is read-only. Windows removes that folder on uninstall. The portable exe still
-uses `SimpleCrosshair.ini` next to the exe.
+uses `NeonSight.ini` next to the exe.
 
 ## Build
 
@@ -21,21 +21,21 @@ powershell -ExecutionPolicy Bypass -File pack.ps1          :: Store upload, unsi
 powershell -ExecutionPolicy Bypass -File pack.ps1 -Direct  :: signed, for testing or direct download
 ```
 
-The version comes from `FILEVERSION` in [simple-crosshair.rc](simple-crosshair.rc). Every Store
+The version comes from `FILEVERSION` in [neonsight.rc](neonsight.rc). Every Store
 submission needs a higher version than the last one, and the last part must be `0` (e.g. `1.1.0.0`).
 
-- **Store build**: produces `SimpleCrosshair-<version>-store.msix`.
-- **Direct build** (`-Direct`): produces `SimpleCrosshair-<version>.msix`, signed with Azure
+- **Store build**: produces `NeonSight-<version>-store.msix`.
+- **Direct build** (`-Direct`): produces `NeonSight-<version>.msix`, signed with Azure
   Artifact Signing (3 signatures per package). Double-click it to install it on any Windows 10
   1809+ or Windows 11 PC. Remove it in *Settings → Apps* or with
-  `Get-AppxPackage KarlLockhart.SimpleCrosshair | Remove-AppxPackage`.
+  `Get-AppxPackage KarlLockhart.NeonSight | Remove-AppxPackage`.
 
 ## One-time Partner Center setup
 
 1. **Developer account**: sign up at https://storedeveloper.microsoft.com as an **Individual**.
    It's free; Microsoft checks a government ID and a selfie.
 2. **Reserve the name**: [Partner Center](https://partner.microsoft.com/dashboard/apps-and-games/overview)
-   → *Apps and games* → *New product* → **MSIX or PWA app** → `Simple Crosshair`.
+   → *Apps and games* → *New product* → **MSIX or PWA app** → `NeonSight` ("Simple Crosshair" was taken). Done.
 3. **Copy the identity**: the product → *Product management* → **Product identity**. Copy
    `Package/Identity/Name`, `Package/Identity/Publisher` and
    `Package/Properties/PublisherDisplayName` into [store/store.json](store/store.json).
@@ -50,7 +50,7 @@ Product → *Start your submission*:
   still ask for a URL; you can link the "What this app does NOT do" section of the README.
 - **Age ratings**: fill in the IARC questionnaire (no violence, no user interaction, no data
   sharing, no purchases).
-- **Packages**: upload `SimpleCrosshair-<version>-store.msix`.
+- **Packages**: upload `NeonSight-<version>-store.msix`.
 - **Store listings** (English): use the text below and at least one screenshot (1366×768 or
   larger; PNG). The settings window with the crosshair on screen works well.
 - **Submission options → Notes for certification**: use the notes below. If Partner Center asks
@@ -66,14 +66,14 @@ The first certification usually takes a few days.
 
 **Description**
 
-> Simple Crosshair draws a clean crosshair in the middle of your screen, on top of any game or
+> NeonSight draws a clean crosshair in the middle of your screen, on top of any game or
 > app. It is one small, click-through, always-on-top window. It never touches the game.
 >
 > • Six styles: cross, cross with dot, T-shape, dot, circle, circle with dot
 > • Any color, opacity, size, thickness, gap and outline
 > • Pick the monitor and nudge the position
 > • Ctrl+Alt+H shows or hides it from anywhere; it lives in the system tray
-> • Tiny (about 30 KB), uses almost no CPU, needs no admin rights
+> • Tiny (about 110 KB), uses almost no CPU, needs no admin rights
 >
 > What it does NOT do: it doesn't read or write other programs' memory, inject code, hook
 > DirectX/OpenGL/Vulkan or input, capture your screen, look at other programs, or use the
@@ -98,7 +98,7 @@ The first certification usually takes a few days.
 
 ### Notes for certification
 
-> Simple Crosshair opens its settings window at launch and draws a crosshair at the centre of
+> NeonSight opens its settings window at launch and draws a crosshair at the centre of
 > the primary monitor. The crosshair window is click-through and always on top. Closing the
 > settings window keeps the app running in the system tray (notification area); click the tray
 > icon to reopen it, or right-click → Exit. Ctrl+Alt+H toggles the crosshair. The app needs no

@@ -1,4 +1,4 @@
-# Builds SimpleCrosshair.exe when a version tag (v*) is pushed, signs it with Azure Artifact
+# Builds NeonSight.exe when a version tag (v*) is pushed, signs it with Azure Artifact
 # Signing, and publishes it as a GitHub Release together with SHA256SUMS.txt.
 #
 # The exe is attached exactly as the compiler produced it (plus the signature): no UPX or any
@@ -54,13 +54,13 @@ jobs:
 
       - name: Sign
         shell: pwsh
-        run: ./sign.ps1 SimpleCrosshair.exe
+        run: ./sign.ps1 NeonSight.exe
 
       - name: Write SHA256SUMS.txt
         shell: pwsh
         run: |
-          $hash = (Get-FileHash SimpleCrosshair.exe -Algorithm SHA256).Hash.ToLower()
-          [IO.File]::WriteAllText("SHA256SUMS.txt", "$hash  SimpleCrosshair.exe`n")
+          $hash = (Get-FileHash NeonSight.exe -Algorithm SHA256).Hash.ToLower()
+          [IO.File]::WriteAllText("SHA256SUMS.txt", "$hash  NeonSight.exe`n")
           Get-Content SHA256SUMS.txt
 
       - name: Create or update GitHub Release
@@ -71,9 +71,9 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           gh release view $tag --json tagName *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag SimpleCrosshair.exe SHA256SUMS.txt --clobber
+            gh release upload $tag NeonSight.exe SHA256SUMS.txt --clobber
           } else {
-            gh release create $tag SimpleCrosshair.exe SHA256SUMS.txt --title $tag --generate-notes
+            gh release create $tag NeonSight.exe SHA256SUMS.txt --title $tag --generate-notes
           }
           if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
